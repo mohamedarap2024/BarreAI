@@ -11,6 +11,15 @@ function getDatabaseUrl() {
   return url.replace(/([?&])channel_binding=require&?/, "$1").replace(/[?&]$/, "");
 }
 
-const sql = neon(getDatabaseUrl());
+type Db = ReturnType<typeof drizzle<typeof schema>>;
 
-export const db = drizzle(sql, { schema });
+let _db: Db | undefined;
+
+export const db = new Proxy({} as Db, {
+  get(_target, prop, receiver) {
+    if (!_db) {
+      _db = drizzle(neon(getDatabaseUrl()), { schema });
+    }
+    return Reflect.get(_db, prop, receiver);
+  },
+});
