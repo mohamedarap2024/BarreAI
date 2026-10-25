@@ -1,0 +1,128 @@
+import { auth } from "@/auth";
+import {
+  createOpenRouterStream,
+  getOpenRouterConfig,
+  openRouterSseToTextStream,
+} from "@/lib/openrouter";
+import { chatRequestSchema, DEFAULT_MODEL } from "@/lib/validation";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+const SYSTEM_PROMPT =
+  "You are Barre AI. Answer clearly and briefly unless asked for more detail. Use simple Markdown.";
+
+const CONNECT_TIMEOUT_MS = 45_000;
+
+export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "Sign in to chat" }, { status: 401 });
+  }
+
+  const { configured, model: defaultModel } = getOpenRouterConfig();
+
+  if (!configured) {
+    return Response.json(
+      {
+        error:
+          "OpenRouter is not configured. Add OPENROUTER_API_KEY to your .env.local file.",
+      },
+      { status: 503 },
+    );
+  }
+
+  let json: unknown;
+  try {
+    json = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const parsed = chatRequestSchema.safeParse(json);
+  if (!parsed.success) {
+    return Response.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const model = parsed.data.model ?? defaultModel ?? DEFAULT_MODEL;
+  const messages = [
+    { role: "system" as const, content: SYSTEM_PROMPT },
+    ...parsed.data.messages
+      .filter((m) => m.role !== "system" && m.content.trim().length > 0)
+      .map((m) => ({ role: m.role, content: m.content.trim() })),
+  ];
+
+  if (messages.length < 2) {
+    return Response.json({ error: "No user message provided" }, { status: 400 });
+  }
+
+  const encoder = new TextEncoder();
+  const upstreamAbort = new AbortController();
+
+  const onClientAbort = () => upstreamAbort.abort();
+  request.signal.addEventListener("abort", onClientAbort);
+
+  // Return immediately so the UI can start reading; connect to OpenRouter inside the stream.
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const timeout = setTimeout(() => {
+        upstreamAbort.abort();
+      }, CONNECT_TIMEOUT_MS);
+
+      try {
+        const upstream = await createOpenRouterStream({
+          messages,
+          model,
+          signal: upstreamAbort.signal,
+        });
+        clearTimeout(timeout);
+
+        const textStream = openRouterSseToTextStream(upstream);
+        const reader = textStream.getReader();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value?.byteLength) {
+            controller.enqueue(value);
+          }
+        }
+        controller.close();
+      } catch (error) {
+        clearTimeout(timeout);
+        const aborted = upstreamAbort.signal.aborted && !request.signal.aborted;
+        const message = aborted
+          ? "Model took too long to start. Try again, or pick another free model."
+          : error instanceof Error
+            ? error.message
+            : "Failed to reach OpenRouter";
+
+        // If headers already started as 200, surface the error as stream text.
+        try {
+          controller.enqueue(encoder.encode(`Error: ${message}`));
+          controller.close();
+        } catch {
+          // controller already closed
+        }
+      } finally {
+        request.signal.removeEventListener("abort", onClientAbort);
+      }
+    },
+    cancel() {
+      upstreamAbort.abort();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+      "X-Barre-Model": model,
+    },
+  });
+}

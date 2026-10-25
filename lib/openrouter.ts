@@ -1,0 +1,171 @@
+import { DEFAULT_MODEL } from "@/lib/validation";
+
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+export type OpenRouterMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+export function getOpenRouterConfig() {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
+
+  return {
+    apiKey: apiKey || null,
+    model,
+    configured: Boolean(apiKey),
+  };
+}
+
+export async function createOpenRouterStream(options: {
+  messages: OpenRouterMessage[];
+  model: string;
+  signal?: AbortSignal;
+}) {
+  const { apiKey } = getOpenRouterConfig();
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not configured");
+  }
+
+  const response = await fetch(OPENROUTER_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "X-Title": "Barre AI",
+    },
+    body: JSON.stringify({
+      model: options.model,
+      messages: options.messages,
+      stream: true,
+      temperature: 0.7,
+      max_tokens: 1024,
+    }),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    let detail = `OpenRouter error (${response.status})`;
+    try {
+      const data = (await response.json()) as {
+        error?: { message?: string };
+      };
+      if (data.error?.message) detail = data.error.message;
+    } catch {
+      // ignore parse errors
+    }
+
+    if (response.status === 401) {
+      throw new Error("Invalid OpenRouter API key");
+    }
+    if (response.status === 429) {
+      throw new Error("Rate limited by OpenRouter. Try again shortly.");
+    }
+    throw new Error(detail);
+  }
+
+  if (!response.body) {
+    throw new Error("OpenRouter returned an empty stream");
+  }
+
+  return response.body;
+}
+
+function extractDeltaContent(data: string): string | null {
+  if (!data || data === "[DONE]") return null;
+
+  try {
+    const parsed = JSON.parse(data) as {
+      choices?: Array<{
+        delta?: { content?: string | null };
+        message?: { content?: string | null };
+      }>;
+      error?: { message?: string };
+    };
+
+    if (parsed.error?.message) {
+      throw new Error(parsed.error.message);
+    }
+
+    const choice = parsed.choices?.[0];
+    const delta = choice?.delta?.content;
+    if (typeof delta === "string" && delta.length > 0) return delta;
+
+    // Rare non-delta chunk shapes from some proxies
+    const message = choice?.message?.content;
+    if (typeof message === "string" && message.length > 0) return message;
+
+    return null;
+  } catch (error) {
+    if (error instanceof SyntaxError) return null;
+    throw error;
+  }
+}
+
+/** Convert OpenRouter SSE bytes into plain text deltas. */
+export function openRouterSseToTextStream(
+  upstream: ReadableStream<Uint8Array>,
+): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = "";
+
+  const flushLines = (
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    chunk: string,
+    { final }: { final: boolean },
+  ) => {
+    buffer += chunk;
+    const parts = buffer.split(/\r?\n/);
+    buffer = final ? "" : (parts.pop() ?? "");
+
+    for (const rawLine of parts) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith(":")) continue;
+      if (!line.startsWith("data:")) continue;
+
+      const content = extractDeltaContent(line.slice(5).trim());
+      if (content) {
+        controller.enqueue(encoder.encode(content));
+      }
+    }
+
+    if (final && buffer.trim()) {
+      const line = buffer.trim();
+      if (line.startsWith("data:")) {
+        const content = extractDeltaContent(line.slice(5).trim());
+        if (content) controller.enqueue(encoder.encode(content));
+      }
+      buffer = "";
+    }
+  };
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const reader = upstream.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            flushLines(controller, decoder.decode(), { final: true });
+            controller.close();
+            break;
+          }
+          flushLines(controller, decoder.decode(value, { stream: true }), {
+            final: false,
+          });
+        }
+      } catch (error) {
+        controller.error(error);
+      } finally {
+        reader.releaseLock();
+      }
+    },
+    cancel() {
+      upstream.cancel().catch(() => undefined);
+    },
+  });
+}
