@@ -4,10 +4,22 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
-// Vercel: never keep a pasted localhost AUTH_URL — it redirects production → localhost.
-// Auth.js v5 infers the real host from headers when AUTH_URL is unset.
-if (process.env.VERCEL && process.env.AUTH_URL?.includes("localhost")) {
-  delete process.env.AUTH_URL;
+// Vercel: force the public production origin so Google OAuth redirect_uri matches Console.
+// A leftover AUTH_URL=localhost (or a preview host) causes redirect_uri_mismatch.
+if (process.env.VERCEL) {
+  const productionHost =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL || "barre-ai-umber.vercel.app";
+  const productionUrl = productionHost.startsWith("http")
+    ? productionHost
+    : `https://${productionHost}`;
+  if (
+    !process.env.AUTH_URL ||
+    process.env.AUTH_URL.includes("localhost") ||
+    process.env.AUTH_URL.includes(".vercel.app")
+  ) {
+    // Prefer the stable production domain over per-deployment *.vercel.app URLs.
+    process.env.AUTH_URL = productionUrl;
+  }
 }
 
 const googleId = process.env.AUTH_GOOGLE_ID?.trim();
