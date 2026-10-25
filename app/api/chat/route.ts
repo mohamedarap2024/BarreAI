@@ -86,9 +86,7 @@ export async function POST(request: Request) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          if (value?.byteLength) {
-            controller.enqueue(value);
-          }
+          controller.enqueue(value);
         }
         controller.close();
       } catch (error) {

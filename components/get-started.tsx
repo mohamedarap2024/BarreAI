@@ -1,32 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { BarreLogo } from "@/components/barre-logo";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { continueAsGuest, signInWithGoogle } from "@/lib/auth-actions";
+import { signInWithGoogle } from "@/lib/auth-actions";
 
-const AUTH_ERRORS: Record<string, string> = {
-  Configuration:
-    "Could not reach Google right now. Check your internet, then try again — or continue as guest.",
-  AccessDenied: "Access was denied. Try another Google account.",
-  Verification: "The sign-in link is no longer valid. Try again.",
-  Default: "Something went wrong during sign-in. Please try again.",
-};
-
-export function GetStarted({ error }: { error?: string }) {
-  const router = useRouter();
-  const [googlePending, startGoogle] = useTransition();
-  const [guestPending, startGuest] = useTransition();
-  const pending = googlePending || guestPending;
-  const errorMessage = error
-    ? (AUTH_ERRORS[error] ?? AUTH_ERRORS.Default)
-    : null;
-
-  function clearErrorFromUrl() {
-    if (error) router.replace("/get-started");
-  }
+export function GetStarted() {
+  const [pending, startTransition] = useTransition();
 
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden bg-background text-foreground">
@@ -41,7 +21,6 @@ export function GetStarted({ error }: { error?: string }) {
 
       <header className="relative z-10 flex items-center justify-between px-5 py-5 sm:px-8">
         <BarreLogo />
-        <ThemeToggle />
       </header>
 
       <main className="relative z-10 mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center px-5 pb-16 text-center sm:px-8">
@@ -57,36 +36,17 @@ export function GetStarted({ error }: { error?: string }) {
         </p>
 
         <div className="mt-10 w-full max-w-sm space-y-3">
-          {errorMessage && (
-            <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-              {errorMessage}
-            </p>
-          )}
           <Button
             variant="accent"
             className="h-12 w-full text-base shadow-[var(--shadow)]"
             disabled={pending}
-            onClick={() => {
-              clearErrorFromUrl();
-              startGoogle(() => void signInWithGoogle());
-            }}
+            onClick={() => startTransition(() => void signInWithGoogle())}
           >
             <GoogleGlyph />
-            {googlePending ? "Opening Google…" : "Get Started with Gmail"}
-          </Button>
-          <Button
-            variant="outline"
-            className="h-11 w-full"
-            disabled={pending}
-            onClick={() => {
-              clearErrorFromUrl();
-              startGuest(() => void continueAsGuest());
-            }}
-          >
-            Continue as guest
+            {pending ? "Opening Google…" : "Get Started with Gmail"}
           </Button>
           <p className="text-xs text-muted">
-            Guest chats stay on this device. Gmail keeps them in your account.
+            We only use your Google account to sign you in and store your chats.
           </p>
         </div>
       </main>

@@ -12,11 +12,6 @@ import {
   type Conversation,
   createId,
 } from "@/lib/chat-types";
-import {
-  loadLocalConversations,
-  mergeConversations,
-  saveLocalConversations,
-} from "@/lib/chat-storage";
 
 type ChatUser = {
   id: string;
@@ -38,21 +33,12 @@ export function ChatShell({ user }: ChatShellProps) {
   const [model, setModel] = useState("nvidia/nemotron-3.5-lightning:free");
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingId, setStreamingId] = useState<string | null>(null);
-  const [streamingContent, setStreamingContent] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const [historySource, setHistorySource] = useState<
-    "local" | "database" | "mixed"
-  >("local");
   const abortRef = useRef<AbortController | null>(null);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
   const streamBufferRef = useRef("");
-  const streamTargetRef = useRef<{
-    conversationId: string;
-    assistantId: string;
-  } | null>(null);
   const rafRef = useRef<number | null>(null);
-  const sawFirstTokenRef = useRef(false);
   const loadedIdsRef = useRef(new Set<string>());
 
   const activeConversation = useMemo(
@@ -60,72 +46,21 @@ export function ChatShell({ user }: ChatShellProps) {
     [conversations, activeId],
   );
 
-  // Keep a durable local copy so chats still appear when Neon is down
-  useEffect(() => {
-    if (loadingHistory) return;
-    saveLocalConversations(user.id, conversations);
-  }, [conversations, loadingHistory, user.id]);
-
   useEffect(() => {
     let cancelled = false;
 
     async function loadHistory() {
-      const local = loadLocalConversations(user.id);
-      if (!cancelled && local.length > 0) {
-        setConversations(local);
-        for (const conversation of local) {
-          if (conversation.messages.length > 0) {
-            loadedIdsRef.current.add(conversation.id);
-          }
-        }
-        setHistorySource("local");
-      }
-
       try {
         const response = await fetch("/api/conversations");
         if (!response.ok) throw new Error("Failed to load chats");
         const data = (await response.json()) as {
           conversations: Conversation[];
-          source?: string;
         };
-
-        if (cancelled) return;
-
-        if (data.source === "unavailable") {
-          setConversations((prev) =>
-            prev.length > 0 ? prev : local,
-          );
-          setHistorySource("local");
-          return;
-        }
-
-        const merged = mergeConversations(local, data.conversations);
-        setConversations(merged);
-        setHistorySource(local.length > 0 ? "mixed" : "database");
-
-        // Prefetch full threads for server rows that only have titles
-        for (const conversation of data.conversations) {
-          if (!loadedIdsRef.current.has(conversation.id)) {
-            void fetch(`/api/conversations/${conversation.id}`)
-              .then(async (res) => {
-                if (!res.ok) return null;
-                return (await res.json()) as { conversation: Conversation };
-              })
-              .then((payload) => {
-                if (!payload?.conversation || cancelled) return;
-                loadedIdsRef.current.add(payload.conversation.id);
-                setConversations((prev) =>
-                  mergeConversations(prev, [payload.conversation]),
-                );
-              })
-              .catch(() => undefined);
-          }
+        if (!cancelled) {
+          setConversations(data.conversations);
         }
       } catch {
-        if (!cancelled) {
-          setConversations((prev) => (prev.length > 0 ? prev : local));
-          setHistorySource("local");
-        }
+        if (!cancelled) setConversations([]);
       } finally {
         if (!cancelled) setLoadingHistory(false);
       }
@@ -135,24 +70,17 @@ export function ChatShell({ user }: ChatShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [user.id]);
+  }, []);
 
   const loadConversationMessages = useCallback(async (id: string) => {
     if (loadedIdsRef.current.has(id)) return;
-
-    const local = conversationsRef.current.find((c) => c.id === id);
-    if (local && local.messages.length > 0) {
-      loadedIdsRef.current.add(id);
-      return;
-    }
-
     try {
       const response = await fetch(`/api/conversations/${id}`);
       if (!response.ok) return;
       const data = (await response.json()) as { conversation: Conversation };
       loadedIdsRef.current.add(id);
       setConversations((prev) =>
-        mergeConversations(prev, [data.conversation]),
+        prev.map((c) => (c.id === id ? data.conversation : c)),
       );
     } catch {
       // keep list item; messages may stay empty until retry
@@ -164,30 +92,27 @@ export function ChatShell({ user }: ChatShellProps) {
     void loadConversationMessages(activeId);
   }, [activeId, loadConversationMessages]);
 
-  const flushStreamToUi = useCallback(() => {
-    setStreamingContent(streamBufferRef.current);
-  }, []);
-
-  const commitStreamToConversation = useCallback((content: string) => {
-    const target = streamTargetRef.current;
-    if (!target) return;
-    const { conversationId, assistantId } = target;
-    setConversations((prev) =>
-      prev.map((conversation) =>
-        conversation.id !== conversationId
-          ? conversation
-          : {
-              ...conversation,
-              updatedAt: new Date().toISOString(),
-              messages: conversation.messages.map((message) =>
-                message.id === assistantId
-                  ? { ...message, content }
-                  : message,
-              ),
-            },
-      ),
-    );
-  }, []);
+  const flushStreamToUi = useCallback(
+    (conversationId: string, assistantId: string) => {
+      const snapshot = streamBufferRef.current;
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id !== conversationId
+            ? conversation
+            : {
+                ...conversation,
+                updatedAt: new Date().toISOString(),
+                messages: conversation.messages.map((message) =>
+                  message.id === assistantId
+                    ? { ...message, content: snapshot }
+                    : message,
+                ),
+              },
+        ),
+      );
+    },
+    [],
+  );
 
   const stopGeneration = useCallback(() => {
     abortRef.current?.abort();
@@ -196,15 +121,9 @@ export function ChatShell({ user }: ChatShellProps) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-    const snapshot = streamBufferRef.current;
-    if (snapshot.trim()) {
-      commitStreamToConversation(snapshot);
-    }
-    streamTargetRef.current = null;
-    setStreamingContent("");
     setStreamingId(null);
     setIsGenerating(false);
-  }, [commitStreamToConversation]);
+  }, []);
 
   const upsertConversation = useCallback(
     (
@@ -332,9 +251,6 @@ export function ChatShell({ user }: ChatShellProps) {
       const controller = new AbortController();
       abortRef.current = controller;
       streamBufferRef.current = "";
-      sawFirstTokenRef.current = false;
-      streamTargetRef.current = { conversationId: targetId, assistantId };
-      setStreamingContent("");
 
       const assistantPlaceholder: ChatMessage = {
         id: assistantId,
@@ -399,21 +315,10 @@ export function ChatShell({ user }: ChatShellProps) {
 
           streamBufferRef.current += decoder.decode(value, { stream: true });
 
-          // Paint the first token immediately; batch the rest per animation frame.
-          if (!sawFirstTokenRef.current) {
-            sawFirstTokenRef.current = true;
-            if (rafRef.current) {
-              cancelAnimationFrame(rafRef.current);
-              rafRef.current = null;
-            }
-            flushStreamToUi();
-            continue;
-          }
-
           if (rafRef.current == null) {
             rafRef.current = requestAnimationFrame(() => {
               rafRef.current = null;
-              flushStreamToUi();
+              flushStreamToUi(targetId, assistantId);
             });
           }
         }
@@ -422,13 +327,22 @@ export function ChatShell({ user }: ChatShellProps) {
           cancelAnimationFrame(rafRef.current);
           rafRef.current = null;
         }
+        flushStreamToUi(targetId, assistantId);
 
         const finalContent =
           streamBufferRef.current.trim() ||
           "No content was returned. The free model may be busy — try again.";
 
-        commitStreamToConversation(finalContent);
-        setStreamingContent("");
+        if (!streamBufferRef.current.trim()) {
+          upsertConversation(targetId, (conversation) => ({
+            ...conversation,
+            messages: conversation.messages.map((message) =>
+              message.id === assistantId
+                ? { ...message, content: finalContent }
+                : message,
+            ),
+          }));
+        }
 
         const assistantMessage: ChatMessage = {
           id: assistantId,
@@ -441,10 +355,18 @@ export function ChatShell({ user }: ChatShellProps) {
         if (!controller.signal.aborted) {
           const message =
             error instanceof Error ? error.message : "Something went wrong";
-          const errorContent =
-            streamBufferRef.current.trim() || `Error: ${message}`;
-          commitStreamToConversation(errorContent);
-          setStreamingContent("");
+          const errorContent = `Error: ${message}`;
+          upsertConversation(targetId, (conversation) => ({
+            ...conversation,
+            messages: conversation.messages.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content: m.content || errorContent,
+                  }
+                : m,
+            ),
+          }));
           void persistMessages(targetId, [
             {
               id: assistantId,
@@ -454,18 +376,12 @@ export function ChatShell({ user }: ChatShellProps) {
             },
           ]);
         } else {
-          const snapshot = streamBufferRef.current.trim();
-          if (snapshot) {
-            commitStreamToConversation(snapshot);
-          } else {
-            upsertConversation(targetId, (conversation) => ({
-              ...conversation,
-              messages: conversation.messages.filter(
-                (m) => m.id !== assistantId,
-              ),
-            }));
-          }
-          setStreamingContent("");
+          upsertConversation(targetId, (conversation) => ({
+            ...conversation,
+            messages: conversation.messages.filter(
+              (m) => !(m.id === assistantId && !m.content.trim()),
+            ),
+          }));
         }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
@@ -473,14 +389,12 @@ export function ChatShell({ user }: ChatShellProps) {
           cancelAnimationFrame(rafRef.current);
           rafRef.current = null;
         }
-        streamTargetRef.current = null;
         setStreamingId(null);
         setIsGenerating(false);
       }
     },
     [
       activeId,
-      commitStreamToConversation,
       flushStreamToUi,
       isGenerating,
       model,
@@ -576,11 +490,7 @@ export function ChatShell({ user }: ChatShellProps) {
               {activeConversation?.title ?? "New chat"}
             </p>
             <p className="truncate text-xs text-muted">
-              {loadingHistory
-                ? "Loading history…"
-                : historySource === "local"
-                  ? "Saved on this device"
-                  : "Barre AI"}
+              {loadingHistory ? "Loading history…" : "Barre AI"}
             </p>
           </div>
         </header>
@@ -591,7 +501,6 @@ export function ChatShell({ user }: ChatShellProps) {
           <MessageList
             messages={activeConversation.messages}
             streamingId={streamingId}
-            streamingContent={streamingContent}
             onCopy={(content) => navigator.clipboard.writeText(content)}
             onRegenerate={handleRegenerate}
             onEdit={(messageId, content) =>

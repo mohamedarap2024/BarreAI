@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import { BarreIcon, BarreLogo } from "@/components/barre-logo";
 import {
+  IconLightMode,
   IconLogout,
+  IconMoon,
   IconMore,
   IconPencil,
   IconPlus,
@@ -14,7 +16,7 @@ import {
   IconTrash,
 } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "@/components/theme-provider";
 import { signOutAction } from "@/lib/auth-actions";
 import {
   type Conversation,
@@ -57,6 +59,7 @@ export function Sidebar({
 }: SidebarProps) {
   const [query, setQuery] = useState("");
   const [menuId, setMenuId] = useState<string | null>(null);
+  const { theme, toggleTheme } = useTheme();
   const displayName = user.name?.trim() || user.email || "Account";
   const displayEmail = user.email ?? "Signed in";
 
@@ -299,57 +302,59 @@ export function Sidebar({
         <div className="border-t border-sidebar-border p-2.5">
           <div
             className={cn(
-              "rounded-2xl bg-muted-bg/60 px-3 py-2.5",
-              collapsed && "md:px-1.5 md:py-2",
+              "flex items-center gap-2 rounded-2xl bg-muted-bg/60 px-2.5 py-2",
+              collapsed && "md:flex-col md:gap-1.5 md:px-1",
             )}
           >
+            {user.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.image}
+                alt=""
+                className="h-9 w-9 shrink-0 rounded-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <BarreIcon
+                size="sm"
+                rounded="rounded-full"
+                className="h-9 w-9 shrink-0"
+              />
+            )}
+            {!collapsed ? (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold leading-tight">
+                  {displayName}
+                </p>
+                <p className="truncate text-[11px] text-muted">{displayEmail}</p>
+              </div>
+            ) : null}
             <div
               className={cn(
-                "flex items-center",
-                collapsed ? "justify-center" : "gap-3",
+                "flex items-center gap-0.5",
+                collapsed && "md:flex-col",
               )}
             >
-              {user.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={user.image}
-                  alt=""
-                  className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-border"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <BarreIcon
-                  size="sm"
-                  rounded="rounded-full"
-                  className="h-10 w-10 shrink-0"
-                />
-              )}
-              {!collapsed ? (
-                <div className="min-w-0 flex-1 pl-0.5">
-                  <p className="truncate text-sm font-semibold leading-snug">
-                    {displayName}
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] leading-snug text-muted">
-                    {displayEmail}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-
-            <div
-              className={cn(
-                "flex items-center",
-                collapsed
-                  ? "mt-2 flex-col gap-1"
-                  : "mt-2.5 justify-between gap-1 border-t border-border/60 pt-2",
-              )}
-            >
-              <div className={cn("flex items-center gap-0.5", collapsed && "flex-col")}>
-                <ThemeToggle
-                  className="h-8 w-8"
-                  iconClassName="h-[18px] w-[18px]"
-                />
-                {!collapsed && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted hover:text-accent"
+                onClick={toggleTheme}
+                aria-label={
+                  theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+                }
+                title={
+                  theme === "dark" ? "Light mode" : "Dark mode"
+                }
+              >
+                {theme === "dark" ? (
+                  <IconLightMode className="h-[18px] w-[18px]" />
+                ) : (
+                  <IconMoon className="h-[18px] w-[18px]" />
+                )}
+              </Button>
+              {!collapsed && (
+                <>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -359,19 +364,17 @@ export function Sidebar({
                   >
                     <IconSettings className="h-4 w-4" />
                   </Button>
-                )}
-              </div>
-              {!collapsed && (
-                <Button
-                  variant="ghost"
-                  className="h-8 gap-1.5 px-2.5 text-muted hover:text-foreground"
-                  aria-label="Log out"
-                  title="Log out and return to sign-in"
-                  onClick={() => void signOutAction()}
-                >
-                  <IconLogout className="h-4 w-4" />
-                  <span className="text-xs font-medium">Log out</span>
-                </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted hover:text-foreground"
+                    aria-label="Sign out"
+                    title="Sign out"
+                    onClick={() => void signOutAction()}
+                  >
+                    <IconLogout className="h-4 w-4" />
+                  </Button>
+                </>
               )}
             </div>
           </div>

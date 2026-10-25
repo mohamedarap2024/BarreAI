@@ -26,21 +26,8 @@ export async function GET() {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const conversations = await listConversations(session.user.id);
-    return Response.json({ conversations, source: "database" });
-  } catch (error) {
-    console.error("[conversations] list failed:", error);
-    // Let the client fall back to local device history instead of a hard 500.
-    return Response.json(
-      {
-        conversations: [],
-        source: "unavailable",
-        error: "Database unavailable",
-      },
-      { status: 200 },
-    );
-  }
+  const conversations = await listConversations(session.user.id);
+  return Response.json({ conversations });
 }
 
 export async function POST(request: Request) {
@@ -61,20 +48,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  try {
-    await createConversation({
-      userId: session.user.id,
-      id: parsed.data.id,
-      title: parsed.data.title,
-      message: parsed.data.message,
-    });
-    return Response.json({ ok: true }, { status: 201 });
-  } catch (error) {
-    console.error("[conversations] create failed:", error);
-    // Client keeps a local copy; don't hard-fail the chat UX.
-    return Response.json(
-      { ok: false, error: "Database unavailable", savedLocally: true },
-      { status: 200 },
-    );
-  }
+  await createConversation({
+    userId: session.user.id,
+    id: parsed.data.id,
+    title: parsed.data.title,
+    message: parsed.data.message,
+  });
+
+  return Response.json({ ok: true }, { status: 201 });
 }

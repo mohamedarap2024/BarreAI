@@ -7,23 +7,10 @@ function getDatabaseUrl() {
   if (!url) {
     throw new Error("DATABASE_URL is not set");
   }
-  return url
-    .replace(/([?&])channel_binding=require&?/, "$1")
-    .replace(/[?&]$/, "");
+  // neon-http works reliably without channel_binding
+  return url.replace(/([?&])channel_binding=require&?/, "$1").replace(/[?&]$/, "");
 }
 
-let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+const sql = neon(getDatabaseUrl());
 
-function createDb() {
-  const sql = neon(getDatabaseUrl());
-  return drizzle(sql, { schema });
-}
-
-/** Lazy DB client — avoids crashing auth import when Neon is unreachable at boot. */
-export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
-  get(_target, prop, receiver) {
-    if (!_db) _db = createDb();
-    const value = Reflect.get(_db, prop, receiver);
-    return typeof value === "function" ? value.bind(_db) : value;
-  },
-});
+export const db = drizzle(sql, { schema });
