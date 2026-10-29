@@ -4,13 +4,8 @@ export type ChatProvider = "openrouter" | "xkiro";
 
 export const MODEL_CATALOG = [
   {
-    id: "google/gemini-3.6-flash",
-    label: "Gemini 3.6 Flash (Somali)",
-    provider: "xkiro",
-  },
-  {
     id: "mistralai/ministral-14b",
-    label: "Ministral 14B",
+    label: "Ministral 14B (Somali)",
     provider: "xkiro",
   },
   {
@@ -20,12 +15,12 @@ export const MODEL_CATALOG = [
   },
   {
     id: "openai/gpt-5.6-luna",
-    label: "GPT 5.6 Luna",
+    label: "GPT 5.6 Luna (paid)",
     provider: "xkiro",
   },
   {
     id: "anthropic/claude-haiku-5.5",
-    label: "Claude Haiku 5.5",
+    label: "Claude Haiku 5.5 (paid)",
     provider: "xkiro",
   },
   {
@@ -59,8 +54,8 @@ export const ALLOWED_MODELS = MODEL_CATALOG.map((m) => m.id) as unknown as [
   ...(typeof MODEL_CATALOG)[number]["id"][],
 ];
 
-/** Default: xKiro Gemini — strong Somali support. */
-export const DEFAULT_MODEL = "google/gemini-3.6-flash" as const;
+/** Default: xKiro Ministral — free + works with Somali prompt. */
+export const DEFAULT_MODEL = "mistralai/ministral-14b" as const;
 
 export function getModelProvider(model: string): ChatProvider {
   const found = MODEL_CATALOG.find((m) => m.id === model);
