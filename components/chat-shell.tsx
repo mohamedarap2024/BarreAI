@@ -30,7 +30,7 @@ export function ChatShell({ user }: ChatShellProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [model, setModel] = useState("mistralai/ministral-14b");
+  const [model, setModel] = useState("nvidia/nemotron-3.5-lightning:free");
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(true);

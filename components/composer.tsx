@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { IconArrowUp, IconStop } from "@/components/icons";
+import { MODEL_CATALOG } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 
 type ComposerProps = {
@@ -15,14 +16,6 @@ type ComposerProps = {
   onModelChange: (model: string) => void;
   disabled?: boolean;
 };
-
-const MODELS = [
-  { id: "mistralai/ministral-14b", label: "Ministral 14B" },
-  { id: "qwen/qwen3.5-flash:free", label: "Qwen 3.5 Flash" },
-  { id: "google/gemini-3.6-flash", label: "Gemini 3.6 Flash" },
-  { id: "openai/gpt-5.6-luna", label: "GPT 5.6 Luna" },
-  { id: "anthropic/claude-haiku-5.5", label: "Claude Haiku 5.5" },
-];
 
 export function Composer({
   value,
@@ -66,14 +59,27 @@ export function Composer({
             <select
               value={model}
               onChange={(e) => onModelChange(e.target.value)}
-              className="h-9 max-w-[180px] rounded-xl border border-border bg-muted-bg px-3 text-xs text-foreground outline-none focus:ring-2 focus:ring-[var(--ring)] sm:max-w-none sm:text-sm"
+              className="h-9 max-w-[220px] rounded-xl border border-border bg-muted-bg px-3 text-xs text-foreground outline-none focus:ring-2 focus:ring-[var(--ring)] sm:max-w-none sm:text-sm"
               aria-label="Select model"
             >
-              {MODELS.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
+              <optgroup label="OpenRouter">
+                {MODEL_CATALOG.filter((m) => m.provider === "openrouter").map(
+                  (item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ),
+                )}
+              </optgroup>
+              <optgroup label="xKiro">
+                {MODEL_CATALOG.filter((m) => m.provider === "xkiro").map(
+                  (item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ),
+                )}
+              </optgroup>
             </select>
 
             {isGenerating ? (

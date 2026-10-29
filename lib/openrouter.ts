@@ -1,5 +1,10 @@
-import { DEFAULT_MODEL } from "@/lib/validation";
+import {
+  DEFAULT_MODEL,
+  getModelProvider,
+  type ChatProvider,
+} from "@/lib/validation";
 
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const XKIRO_URL = "https://api.xkiro.com/v1/chat/completions";
 
 export type OpenRouterMessage = {
@@ -7,39 +12,69 @@ export type OpenRouterMessage = {
   content: string;
 };
 
-export function getOpenRouterConfig() {
-  const apiKey =
-    process.env.XKIRO_API_KEY?.trim() ||
-    process.env.OPENROUTER_API_KEY?.trim();
+export function getChatConfig() {
+  const openrouterKey = process.env.OPENROUTER_API_KEY?.trim() || null;
+  const xkiroKey = process.env.XKIRO_API_KEY?.trim() || null;
   const model =
-    process.env.XKIRO_MODEL?.trim() ||
     process.env.OPENROUTER_MODEL?.trim() ||
+    process.env.XKIRO_MODEL?.trim() ||
     DEFAULT_MODEL;
 
   return {
-    apiKey: apiKey || null,
+    openrouterKey,
+    xkiroKey,
     model,
-    configured: Boolean(apiKey),
+    configured: Boolean(openrouterKey || xkiroKey),
   };
 }
 
-export async function createOpenRouterStream(options: {
+/** @deprecated Use getChatConfig — kept for existing imports. */
+export function getOpenRouterConfig() {
+  const cfg = getChatConfig();
+  return {
+    apiKey: cfg.openrouterKey || cfg.xkiroKey,
+    model: cfg.model,
+    configured: cfg.configured,
+  };
+}
+
+function providerLabel(provider: ChatProvider) {
+  return provider === "xkiro" ? "xKiro" : "OpenRouter";
+}
+
+export async function createChatStream(options: {
   messages: OpenRouterMessage[];
   model: string;
   signal?: AbortSignal;
 }) {
-  const { apiKey } = getOpenRouterConfig();
+  const provider = getModelProvider(options.model);
+  const cfg = getChatConfig();
+  const apiKey = provider === "xkiro" ? cfg.xkiroKey : cfg.openrouterKey;
+
   if (!apiKey) {
-    throw new Error("XKIRO_API_KEY is not configured");
+    throw new Error(
+      `${providerLabel(provider)} is not configured. Add ${
+        provider === "xkiro" ? "XKIRO_API_KEY" : "OPENROUTER_API_KEY"
+      } to your environment.`,
+    );
   }
 
-  const response = await fetch(XKIRO_URL, {
+  const url = provider === "xkiro" ? XKIRO_URL : OPENROUTER_URL;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+  };
+
+  if (provider === "openrouter") {
+    headers["HTTP-Referer"] =
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    headers["X-Title"] = "Barre AI";
+  }
+
+  const response = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-    },
+    headers,
     body: JSON.stringify({
       model: options.model,
       messages: options.messages,
@@ -51,7 +86,7 @@ export async function createOpenRouterStream(options: {
   });
 
   if (!response.ok) {
-    let detail = `xKiro error (${response.status})`;
+    let detail = `${providerLabel(provider)} error (${response.status})`;
     try {
       const data = (await response.json()) as {
         error?: { message?: string };
@@ -62,19 +97,30 @@ export async function createOpenRouterStream(options: {
     }
 
     if (response.status === 401) {
-      throw new Error("Invalid xKiro API key");
+      throw new Error(`Invalid ${providerLabel(provider)} API key`);
     }
     if (response.status === 429) {
-      throw new Error("Rate limited by xKiro. Try again shortly.");
+      throw new Error(
+        `Rate limited by ${providerLabel(provider)}. Try again shortly.`,
+      );
     }
     throw new Error(detail);
   }
 
   if (!response.body) {
-    throw new Error("xKiro returned an empty stream");
+    throw new Error(`${providerLabel(provider)} returned an empty stream`);
   }
 
   return response.body;
+}
+
+/** @deprecated Use createChatStream */
+export async function createOpenRouterStream(options: {
+  messages: OpenRouterMessage[];
+  model: string;
+  signal?: AbortSignal;
+}) {
+  return createChatStream(options);
 }
 
 function extractDeltaContent(data: string): string | null {
@@ -97,7 +143,6 @@ function extractDeltaContent(data: string): string | null {
     const delta = choice?.delta?.content;
     if (typeof delta === "string" && delta.length > 0) return delta;
 
-    // Rare non-delta chunk shapes from some proxies
     const message = choice?.message?.content;
     if (typeof message === "string" && message.length > 0) return message;
 

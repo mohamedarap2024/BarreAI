@@ -1,6 +1,6 @@
 # BarreAI
 
-Somali AI chat app built with Next.js, Auth.js (Google), Neon Postgres, and OpenRouter.
+Somali AI chat app built with Next.js, Auth.js (Google), Neon Postgres, OpenRouter, and xKiro.
 
 ## Local setup
 
@@ -19,13 +19,15 @@ See [`.env.example`](.env.example). Required keys:
 
 | Variable | Purpose |
 | --- | --- |
-| `OPENROUTER_API_KEY` | Chat completions |
-| `OPENROUTER_MODEL` | Model id (optional; has a default) |
+| `OPENROUTER_API_KEY` | OpenRouter chat (optional if xKiro is set) |
+| `OPENROUTER_MODEL` | Default OpenRouter model (optional) |
+| `XKIRO_API_KEY` | xKiro chat (optional if OpenRouter is set) |
+| `XKIRO_MODEL` | Default xKiro model (optional) |
 | `DATABASE_URL` | Neon Postgres connection string |
 | `AUTH_SECRET` | Auth.js session encryption |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth |
 | `AUTH_URL` | App origin (`http://localhost:3000` locally) |
-| `NEXT_PUBLIC_APP_URL` | Public app URL (OpenRouter referer) |
+| `NEXT_PUBLIC_APP_URL` | Public app URL |
 
 **Never commit `.env.local`.** It is gitignored.
 

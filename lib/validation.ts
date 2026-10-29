@@ -1,15 +1,70 @@
 import { z } from "zod";
 
-/** xKiro chat models shown in the composer. */
-export const ALLOWED_MODELS = [
-  "mistralai/ministral-14b",
-  "qwen/qwen3.5-flash:free",
-  "google/gemini-3.6-flash",
-  "openai/gpt-5.6-luna",
-  "anthropic/claude-haiku-5.5",
-] as const;
+export type ChatProvider = "openrouter" | "xkiro";
 
-export const DEFAULT_MODEL = "mistralai/ministral-14b";
+export const MODEL_CATALOG = [
+  {
+    id: "nvidia/nemotron-3.5-lightning:free",
+    label: "Nemotron Lightning",
+    provider: "openrouter",
+  },
+  {
+    id: "openrouter/free",
+    label: "OpenRouter Free",
+    provider: "openrouter",
+  },
+  {
+    id: "google/gemma-4-26b-a4b-it:free",
+    label: "Gemma 4 Free",
+    provider: "openrouter",
+  },
+  {
+    id: "poolside/laguna-xs-2.1:free",
+    label: "Laguna XS Free",
+    provider: "openrouter",
+  },
+  {
+    id: "mistralai/ministral-14b",
+    label: "Ministral 14B",
+    provider: "xkiro",
+  },
+  {
+    id: "qwen/qwen3.5-flash:free",
+    label: "Qwen 3.5 Flash",
+    provider: "xkiro",
+  },
+  {
+    id: "google/gemini-3.6-flash",
+    label: "Gemini 3.6 Flash",
+    provider: "xkiro",
+  },
+  {
+    id: "openai/gpt-5.6-luna",
+    label: "GPT 5.6 Luna",
+    provider: "xkiro",
+  },
+  {
+    id: "anthropic/claude-haiku-5.5",
+    label: "Claude Haiku 5.5",
+    provider: "xkiro",
+  },
+] as const satisfies ReadonlyArray<{
+  id: string;
+  label: string;
+  provider: ChatProvider;
+}>;
+
+export const ALLOWED_MODELS = MODEL_CATALOG.map((m) => m.id) as unknown as [
+  (typeof MODEL_CATALOG)[number]["id"],
+  ...(typeof MODEL_CATALOG)[number]["id"][],
+];
+
+export const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free" as const;
+
+export function getModelProvider(model: string): ChatProvider {
+  const found = MODEL_CATALOG.find((m) => m.id === model);
+  return found?.provider ?? "openrouter";
+}
 
 export const chatMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),

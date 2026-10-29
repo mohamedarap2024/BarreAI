@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import {
-  createOpenRouterStream,
-  getOpenRouterConfig,
+  createChatStream,
+  getChatConfig,
   openRouterSseToTextStream,
 } from "@/lib/openrouter";
 import { chatRequestSchema, DEFAULT_MODEL } from "@/lib/validation";
@@ -26,13 +26,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "Sign in to chat" }, { status: 401 });
   }
 
-  const { configured, model: defaultModel } = getOpenRouterConfig();
+  const { configured, model: defaultModel } = getChatConfig();
 
   if (!configured) {
     return Response.json(
       {
         error:
-          "xKiro is not configured. Add XKIRO_API_KEY to your .env.local file.",
+          "No chat API configured. Add OPENROUTER_API_KEY and/or XKIRO_API_KEY to your environment.",
       },
       { status: 503 },
     );
@@ -71,7 +71,6 @@ export async function POST(request: Request) {
   const onClientAbort = () => upstreamAbort.abort();
   request.signal.addEventListener("abort", onClientAbort);
 
-  // Return immediately so the UI can start reading; connect to xKiro inside the stream.
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const timeout = setTimeout(() => {
@@ -79,7 +78,7 @@ export async function POST(request: Request) {
       }, CONNECT_TIMEOUT_MS);
 
       try {
-        const upstream = await createOpenRouterStream({
+        const upstream = await createChatStream({
           messages,
           model,
           signal: upstreamAbort.signal,
@@ -102,9 +101,8 @@ export async function POST(request: Request) {
           ? "Model took too long to start. Try again, or pick another model."
           : error instanceof Error
             ? error.message
-            : "Failed to reach xKiro";
+            : "Failed to reach the chat API";
 
-        // If headers already started as 200, surface the error as stream text.
         try {
           controller.enqueue(encoder.encode(`Error: ${message}`));
           controller.close();
