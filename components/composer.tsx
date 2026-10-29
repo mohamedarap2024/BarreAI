@@ -62,8 +62,8 @@ export function Composer({
               className="h-9 max-w-[220px] rounded-xl border border-border bg-muted-bg px-3 text-xs text-foreground outline-none focus:ring-2 focus:ring-[var(--ring)] sm:max-w-none sm:text-sm"
               aria-label="Select model"
             >
-              <optgroup label="OpenRouter">
-                {MODEL_CATALOG.filter((m) => m.provider === "openrouter").map(
+              <optgroup label="xKiro (Somali)">
+                {MODEL_CATALOG.filter((m) => m.provider === "xkiro").map(
                   (item) => (
                     <option key={item.id} value={item.id}>
                       {item.label}
@@ -71,8 +71,8 @@ export function Composer({
                   ),
                 )}
               </optgroup>
-              <optgroup label="xKiro">
-                {MODEL_CATALOG.filter((m) => m.provider === "xkiro").map(
+              <optgroup label="OpenRouter">
+                {MODEL_CATALOG.filter((m) => m.provider === "openrouter").map(
                   (item) => (
                     <option key={item.id} value={item.id}>
                       {item.label}

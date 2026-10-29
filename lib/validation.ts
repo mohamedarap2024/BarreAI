@@ -4,6 +4,31 @@ export type ChatProvider = "openrouter" | "xkiro";
 
 export const MODEL_CATALOG = [
   {
+    id: "google/gemini-3.6-flash",
+    label: "Gemini 3.6 Flash (Somali)",
+    provider: "xkiro",
+  },
+  {
+    id: "mistralai/ministral-14b",
+    label: "Ministral 14B",
+    provider: "xkiro",
+  },
+  {
+    id: "qwen/qwen3.5-flash:free",
+    label: "Qwen 3.5 Flash",
+    provider: "xkiro",
+  },
+  {
+    id: "openai/gpt-5.6-luna",
+    label: "GPT 5.6 Luna",
+    provider: "xkiro",
+  },
+  {
+    id: "anthropic/claude-haiku-5.5",
+    label: "Claude Haiku 5.5",
+    provider: "xkiro",
+  },
+  {
     id: "nvidia/nemotron-3.5-lightning:free",
     label: "Nemotron Lightning",
     provider: "openrouter",
@@ -23,31 +48,6 @@ export const MODEL_CATALOG = [
     label: "Laguna XS Free",
     provider: "openrouter",
   },
-  {
-    id: "mistralai/ministral-14b",
-    label: "Ministral 14B",
-    provider: "xkiro",
-  },
-  {
-    id: "qwen/qwen3.5-flash:free",
-    label: "Qwen 3.5 Flash",
-    provider: "xkiro",
-  },
-  {
-    id: "google/gemini-3.6-flash",
-    label: "Gemini 3.6 Flash",
-    provider: "xkiro",
-  },
-  {
-    id: "openai/gpt-5.6-luna",
-    label: "GPT 5.6 Luna",
-    provider: "xkiro",
-  },
-  {
-    id: "anthropic/claude-haiku-5.5",
-    label: "Claude Haiku 5.5",
-    provider: "xkiro",
-  },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -59,7 +59,8 @@ export const ALLOWED_MODELS = MODEL_CATALOG.map((m) => m.id) as unknown as [
   ...(typeof MODEL_CATALOG)[number]["id"][],
 ];
 
-export const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free" as const;
+/** Default: xKiro Gemini — strong Somali support. */
+export const DEFAULT_MODEL = "google/gemini-3.6-flash" as const;
 
 export function getModelProvider(model: string): ChatProvider {
   const found = MODEL_CATALOG.find((m) => m.id === model);

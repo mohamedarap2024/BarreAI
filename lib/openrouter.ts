@@ -16,8 +16,8 @@ export function getChatConfig() {
   const openrouterKey = process.env.OPENROUTER_API_KEY?.trim() || null;
   const xkiroKey = process.env.XKIRO_API_KEY?.trim() || null;
   const model =
-    process.env.OPENROUTER_MODEL?.trim() ||
     process.env.XKIRO_MODEL?.trim() ||
+    process.env.OPENROUTER_MODEL?.trim() ||
     DEFAULT_MODEL;
 
   return {

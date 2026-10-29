@@ -4,14 +4,25 @@ import {
   getChatConfig,
   openRouterSseToTextStream,
 } from "@/lib/openrouter";
-import { chatRequestSchema, DEFAULT_MODEL } from "@/lib/validation";
+import {
+  chatRequestSchema,
+  DEFAULT_MODEL,
+  getModelProvider,
+} from "@/lib/validation";
 import { checkBotId } from "botid/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const SYSTEM_PROMPT =
-  "You are Barre AI. Answer clearly and briefly unless asked for more detail. Use simple Markdown.";
+  "You are Barre AI, a Somali AI assistant (caawiye AI Soomaaliyeed). " +
+  "Reply in the same language the user writes in. When they write Somali (Af-Soomaali), answer in clear, natural Somali. " +
+  "When they write English, answer in English. Keep answers brief unless asked for more detail. Use simple Markdown.";
+
+const XKIRO_SYSTEM_PROMPT =
+  "Waxaad tahay Barre AI — caawiyaha AI ee Soomaaliyeed. " +
+  "Marka isticmaaluhu Soomaali ku qoro, uga jawaab Soomaali cad oo dabiici ah; ha isticmaalin Ingiriis haddii aan la weydiin. " +
+  "Marka Ingiriis ku qoro, Ingiriis uga jawaab. Jawaabaha ha gaabnee, faahfaahinina sii marka la weydiiyo. Isticmaal Markdown fudud.";
 
 const CONNECT_TIMEOUT_MS = 45_000;
 
@@ -54,8 +65,10 @@ export async function POST(request: Request) {
   }
 
   const model = parsed.data.model ?? defaultModel ?? DEFAULT_MODEL;
+  const systemPrompt =
+    getModelProvider(model) === "xkiro" ? XKIRO_SYSTEM_PROMPT : SYSTEM_PROMPT;
   const messages = [
-    { role: "system" as const, content: SYSTEM_PROMPT },
+    { role: "system" as const, content: systemPrompt },
     ...parsed.data.messages
       .filter((m) => m.role !== "system" && m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content.trim() })),
