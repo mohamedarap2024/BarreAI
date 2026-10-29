@@ -1,15 +1,15 @@
 import { z } from "zod";
 
-/** Currently available free OpenRouter models (verified via /api/v1/models). */
+/** xKiro chat models shown in the composer. */
 export const ALLOWED_MODELS = [
-  "liquid/lfm-2.5-2.6b:free",
-  "poolside/laguna-xs-2.1:free",
-  "google/gemma-4-26b-a4b-it:free",
-  "openrouter/free",
-  "nvidia/nemotron-3.5-lightning:free",
+  "mistralai/ministral-14b",
+  "qwen/qwen3.5-flash:free",
+  "google/gemini-3.6-flash",
+  "openai/gpt-5.6-luna",
+  "anthropic/claude-haiku-5.5",
 ] as const;
 
-export const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free";
+export const DEFAULT_MODEL = "mistralai/ministral-14b";
 
 export const chatMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),

@@ -20,6 +20,7 @@ export async function GET() {
     AUTH_GOOGLE_ID: Boolean(process.env.AUTH_GOOGLE_ID?.trim()),
     AUTH_GOOGLE_SECRET: Boolean(process.env.AUTH_GOOGLE_SECRET?.trim()),
     DATABASE_URL: Boolean(process.env.DATABASE_URL?.trim()),
+    XKIRO_API_KEY: Boolean(process.env.XKIRO_API_KEY?.trim()),
     OPENROUTER_API_KEY: Boolean(process.env.OPENROUTER_API_KEY?.trim()),
     AUTH_URL_raw: rawAuthUrl,
     AUTH_URL_effective: authUrl,

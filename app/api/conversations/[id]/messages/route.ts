@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { appendMessages, replaceMessagesFrom } from "@/lib/conversations";
+import { checkBotId } from "botid/server";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -19,6 +20,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request, { params }: Params) {
+  const verification = await checkBotId();
+  if (verification.isBot) {
+    return Response.json({ error: "Access denied" }, { status: 403 });
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });

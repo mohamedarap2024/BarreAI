@@ -17,10 +17,11 @@ type ComposerProps = {
 };
 
 const MODELS = [
-  { id: "nvidia/nemotron-3.5-lightning:free", label: "Nemotron Lightning" },
-  { id: "openrouter/free", label: "OpenRouter Free" },
-  { id: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 Free" },
-  { id: "poolside/laguna-xs-2.1:free", label: "Laguna XS Free" },
+  { id: "mistralai/ministral-14b", label: "Ministral 14B" },
+  { id: "qwen/qwen3.5-flash:free", label: "Qwen 3.5 Flash" },
+  { id: "google/gemini-3.6-flash", label: "Gemini 3.6 Flash" },
+  { id: "openai/gpt-5.6-luna", label: "GPT 5.6 Luna" },
+  { id: "anthropic/claude-haiku-5.5", label: "Claude Haiku 5.5" },
 ];
 
 export function Composer({

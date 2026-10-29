@@ -5,6 +5,7 @@ import {
   openRouterSseToTextStream,
 } from "@/lib/openrouter";
 import { chatRequestSchema, DEFAULT_MODEL } from "@/lib/validation";
+import { checkBotId } from "botid/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,6 +16,11 @@ const SYSTEM_PROMPT =
 const CONNECT_TIMEOUT_MS = 45_000;
 
 export async function POST(request: Request) {
+  const verification = await checkBotId();
+  if (verification.isBot) {
+    return Response.json({ error: "Access denied" }, { status: 403 });
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return Response.json({ error: "Sign in to chat" }, { status: 401 });
@@ -26,7 +32,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error:
-          "OpenRouter is not configured. Add OPENROUTER_API_KEY to your .env.local file.",
+          "xKiro is not configured. Add XKIRO_API_KEY to your .env.local file.",
       },
       { status: 503 },
     );
@@ -65,7 +71,7 @@ export async function POST(request: Request) {
   const onClientAbort = () => upstreamAbort.abort();
   request.signal.addEventListener("abort", onClientAbort);
 
-  // Return immediately so the UI can start reading; connect to OpenRouter inside the stream.
+  // Return immediately so the UI can start reading; connect to xKiro inside the stream.
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const timeout = setTimeout(() => {
@@ -93,10 +99,10 @@ export async function POST(request: Request) {
         clearTimeout(timeout);
         const aborted = upstreamAbort.signal.aborted && !request.signal.aborted;
         const message = aborted
-          ? "Model took too long to start. Try again, or pick another free model."
+          ? "Model took too long to start. Try again, or pick another model."
           : error instanceof Error
             ? error.message
-            : "Failed to reach OpenRouter";
+            : "Failed to reach xKiro";
 
         // If headers already started as 200, surface the error as stream text.
         try {

@@ -1,6 +1,6 @@
 import { DEFAULT_MODEL } from "@/lib/validation";
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const XKIRO_URL = "https://api.xkiro.com/v1/chat/completions";
 
 export type OpenRouterMessage = {
   role: "system" | "user" | "assistant";
@@ -8,8 +8,13 @@ export type OpenRouterMessage = {
 };
 
 export function getOpenRouterConfig() {
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-  const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
+  const apiKey =
+    process.env.XKIRO_API_KEY?.trim() ||
+    process.env.OPENROUTER_API_KEY?.trim();
+  const model =
+    process.env.XKIRO_MODEL?.trim() ||
+    process.env.OPENROUTER_MODEL?.trim() ||
+    DEFAULT_MODEL;
 
   return {
     apiKey: apiKey || null,
@@ -25,17 +30,15 @@ export async function createOpenRouterStream(options: {
 }) {
   const { apiKey } = getOpenRouterConfig();
   if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY is not configured");
+    throw new Error("XKIRO_API_KEY is not configured");
   }
 
-  const response = await fetch(OPENROUTER_URL, {
+  const response = await fetch(XKIRO_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       Accept: "text/event-stream",
-      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-      "X-Title": "Barre AI",
     },
     body: JSON.stringify({
       model: options.model,
@@ -48,7 +51,7 @@ export async function createOpenRouterStream(options: {
   });
 
   if (!response.ok) {
-    let detail = `OpenRouter error (${response.status})`;
+    let detail = `xKiro error (${response.status})`;
     try {
       const data = (await response.json()) as {
         error?: { message?: string };
@@ -59,16 +62,16 @@ export async function createOpenRouterStream(options: {
     }
 
     if (response.status === 401) {
-      throw new Error("Invalid OpenRouter API key");
+      throw new Error("Invalid xKiro API key");
     }
     if (response.status === 429) {
-      throw new Error("Rate limited by OpenRouter. Try again shortly.");
+      throw new Error("Rate limited by xKiro. Try again shortly.");
     }
     throw new Error(detail);
   }
 
   if (!response.body) {
-    throw new Error("OpenRouter returned an empty stream");
+    throw new Error("xKiro returned an empty stream");
   }
 
   return response.body;
@@ -105,7 +108,7 @@ function extractDeltaContent(data: string): string | null {
   }
 }
 
-/** Convert OpenRouter SSE bytes into plain text deltas. */
+/** Convert OpenAI-compatible SSE bytes into plain text deltas. */
 export function openRouterSseToTextStream(
   upstream: ReadableStream<Uint8Array>,
 ): ReadableStream<Uint8Array> {
